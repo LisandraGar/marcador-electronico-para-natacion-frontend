@@ -1,102 +1,106 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Palette, Check } from 'lucide-react';
 
-export const ColorPicker = ({ onColorChange }) => {
-    const [selectedColor, setSelectedColor] = useState('#10B981'); // Verde por defecto (como Matrix)
+const PRESET_COLORS = [
+  { name: 'Esmeralda', hex: '#10B981' },
+  { name: 'Menta', hex: '#34D399' },
+  { name: 'Cian', hex: '#22D3EE' },
+  { name: 'Azul', hex: '#3B82F6' },
+  { name: 'Púrpura', hex: '#8B5CF6' },
+  { name: 'Ámbar', hex: '#F59E0B' },
+  { name: 'Rojo', hex: '#EF4444' },
+  { name: 'Blanco', hex: '#FFFFFF' },
+  { name: 'Rosa', hex: '#EC4899' },
+  { name: 'Lima', hex: '#84CC16' },
+  { name: 'Naranja', hex: '#FB923C' },
+  { name: 'Turquesa', hex: '#14B8A6' },
+];
 
-    // Colores predefinidos inspirados en Matrix
-    const matrixColors = [
-        '#10B981', // green-500
-        '#059669', // green-600
-        '#047857', // green-700
-        '#34D399', // green-400
-        '#6EE7B7', // green-300
-        '#A7F3D0', // green-200
-        '#22D3EE', // cyan-400
-        '#06B6D4', // cyan-500
-        '#0891B2', // cyan-600
-        '#8B5CF6', // violet-500
-        '#7C3AED', // violet-600
-        '#EC4899', // pink-500
-        '#F59E0B', // amber-500
-        '#EF4444', // red-500
-        '#3B82F6', // blue-500
-        '#FFFFFF', // blanco
-    ];
+export const ColorPicker = ({
+  color = '#10B981',
+  onColorChange,
+  className = '',
+}) => {
+  const [internalColor, setInternalColor] = useState(color);
 
-    const handleColorSelect = (color) => {
-        setSelectedColor(color);
-        if (onColorChange) {
-            onColorChange(color);
-        }
-    };
+  useEffect(() => {
+    setInternalColor(color);
+  }, [color]);
 
-    const handleCustomColor = (e) => {
-        const color = e.target.value;
-        setSelectedColor(color);
-        if (onColorChange) {
-            onColorChange(color);
-        }
-    };
+  const handleSelect = (newColor) => {
+    setInternalColor(newColor);
+    onColorChange?.(newColor);
+  };
 
-    return (
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 max-w-md mx-auto">
-            <h2 className="text-xl font-bold text-green-400 mb-4 font-mono text-center">
-                MATRIX COLOR PICKER
-            </h2>
+  return (
+    <div className={`p-4 bg-gray-900/90 border border-gray-800 rounded-xl space-y-3 ${className}`}>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-gray-300">
+          <Palette size={14} className="text-emerald-400" />
+          Color del Texto LED
+        </label>
+        <span
+          className="text-xs font-mono font-bold px-2 py-0.5 rounded border border-gray-700 shadow-xs"
+          style={{ color: internalColor }}
+        >
+          {internalColor.toUpperCase()}
+        </span>
+      </div>
 
-            {/* Color seleccionado actualmente */}
-            <div className="flex items-center justify-center mb-6">
-                <div className="flex items-center gap-4">
-                    <div
-                        className="w-12 h-12 rounded-lg border-2 border-gray-600 shadow-md"
-                        style={{ backgroundColor: selectedColor }}
-                    />
-                    <div className="text-green-300 font-mono">
-                        <div className="text-sm">SELECCIONADO</div>
-                        <div className="text-lg font-bold">{selectedColor.toUpperCase()}</div>
-                    </div>
-                </div>
-            </div>
+      {/* Selector personalizado */}
+      <div className="flex items-center gap-3">
+        <label className="relative cursor-pointer shrink-0">
+          <div
+            className="w-10 h-10 rounded-lg border-2 border-gray-700 shadow-md transition-transform hover:scale-105"
+            style={{ backgroundColor: internalColor }}
+          />
+          <input
+            type="color"
+            value={internalColor}
+            onChange={(e) => handleSelect(e.target.value)}
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            aria-label="Seleccionar color personalizado"
+          />
+        </label>
 
-            {/* Selector de color personalizado */}
-            <div className="mb-6">
-                <label className="block text-green-300 font-mono text-sm mb-2 text-center">
-                    COLOR PERSONALIZADO
-                </label>
-                <div className="flex items-center justify-center gap-3">
-                    <input
-                        type="color"
-                        value={selectedColor}
-                        onChange={handleCustomColor}
-                        className="w-12 h-12 cursor-pointer bg-transparent border-none"
-                    />
-                    <input
-                        type="text"
-                        value={selectedColor}
-                        onChange={(e) => handleColorSelect(e.target.value)}
-                        className="bg-gray-700 text-green-300 font-mono px-3 py-2 rounded border border-gray-600 focus:border-green-500 focus:outline-none w-32 text-center"
-                    />
-                </div>
-            </div>
+        <input
+          type="text"
+          value={internalColor}
+          onChange={(e) => handleSelect(e.target.value)}
+          placeholder="#10B981"
+          maxLength={7}
+          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-emerald-300 font-mono focus:border-emerald-500 focus:outline-none transition-colors"
+        />
+      </div>
 
-            {/* Paleta de colores predefinidos */}
-            <div className="mb-4">
-                <label className="block text-green-300 font-mono text-sm mb-3 text-center">
-                    PALETA DE COLORES
-                </label>
-                <div className="grid grid-cols-8 gap-2">
-                    {matrixColors.map((color, index) => (
-                        <button
-                            key={index}
-                            className={`w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-lg ${selectedColor === color ? 'border-green-400 shadow-lg scale-110' : 'border-gray-600'
-                                }`}
-                            style={{ backgroundColor: color }}
-                            onClick={() => handleColorSelect(color)}
-                            title={color}
-                        />
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
+      {/* Paleta de presets responsive */}
+      <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5 pt-1">
+        {PRESET_COLORS.map(({ name, hex }) => {
+          const isSelected = internalColor.toLowerCase() === hex.toLowerCase();
+          return (
+            <button
+              key={hex}
+              type="button"
+              onClick={() => handleSelect(hex)}
+              className={`h-7 rounded-md transition-all flex items-center justify-center border ${
+                isSelected
+                  ? 'border-white scale-110 shadow-[0_0_8px_rgba(255,255,255,0.4)] ring-1 ring-white/50'
+                  : 'border-transparent hover:scale-105 hover:border-gray-500'
+              }`}
+              style={{ backgroundColor: hex }}
+              title={`${name} (${hex})`}
+              aria-label={`Seleccionar color ${name}`}
+            >
+              {isSelected && (
+                <Check
+                  size={14}
+                  className={hex === '#FFFFFF' || hex === '#34D399' || hex === '#22D3EE' ? 'text-black' : 'text-white'}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
