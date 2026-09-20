@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <!-- Matrix LED border -->
+  <rect x="4" y="4" width="56" height="56" rx="10" stroke="#10b981" stroke-width="2" stroke-dasharray="2 4"/>
+  <!-- Swimming waves -->
+  <path d="M12 40 C16 36, 20 44, 24 40 C28 36, 32 44, 36 40 C40 36, 44 44, 48 40 C52 36, 56 44, 60 40" stroke="#06b6d4" stroke-width="3" stroke-linecap="round"/>
+  <path d="M12 48 C16 44, 20 52, 24 48 C28 44, 32 52, 36 48 C40 44, 44 52, 48 48 C52 44, 56 52, 60 48" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+  <!-- Digital / Stopwatch icon -->
+  <circle cx="32" cy="24" r="12" stroke="#10b981" stroke-width="3"/>
+  <line x1="32" y1="24" x2="32" y2="17" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="32" y1="24" x2="38" y2="24" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="30" y="8" width="4" height="4" rx="1" fill="#10b981"/>
+</svg>
