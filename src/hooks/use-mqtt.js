@@ -93,6 +93,12 @@ export const useMQTT = (topics = []) => {
       return;
     }
 
+    if (!config.password) {
+      setStatus('offline');
+      setError('Falta ingresar la contraseña del broker MQTT para conectar.');
+      return;
+    }
+
     const brokerUrl = `wss://${config.host}:${config.port || '8884'}/mqtt`;
 
     const options = {

@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { X, Save, RotateCcw, ShieldCheck, Radio } from 'lucide-react'
+import { X, Save, RotateCcw, ShieldCheck, Radio, Eye, EyeOff } from 'lucide-react'
 import { getStoredMqttConfig, saveStoredMqttConfig, resetStoredMqttConfig } from '../hooks/use-mqtt'
 
 export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError }) => {
   const [form, setForm] = useState(getStoredMqttConfig)
+  const [showPassword, setShowPassword] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
 
   if (!isOpen) return null
@@ -125,14 +126,25 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
             <label className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
               Contraseña MQTT
             </label>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="••••••••"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 font-mono focus:border-emerald-500 focus:outline-none transition-colors"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder="••••••••"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-3 pr-10 py-2 text-sm text-gray-100 font-mono focus:border-emerald-500 focus:outline-none transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors p-1"
+                title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           <div className="text-[11px] text-gray-400 bg-gray-800/60 p-2.5 rounded-lg border border-gray-800 flex items-start gap-2">
