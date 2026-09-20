@@ -9,6 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "check-secrets": "node scripts/check-secrets.js",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist -b gh-pages --dotfiles",
     "deploy:produccion-pantallas": "gh-pages -d dist -r https://github.com/Aarevalo3108/ProduccionPantallas.git -b main --dotfiles"
