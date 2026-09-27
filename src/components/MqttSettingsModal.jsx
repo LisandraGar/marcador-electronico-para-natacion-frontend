@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Save, RotateCcw, ShieldCheck, Radio, Eye, EyeOff } from 'lucide-react'
 import { getStoredMqttConfig, saveStoredMqttConfig, resetStoredMqttConfig } from '../hooks/use-mqtt'
 
@@ -6,6 +6,14 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
   const [form, setForm] = useState(getStoredMqttConfig)
   const [showPassword, setShowPassword] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
+
+  // Sincronizar campos con la configuración activa cada vez que se abre el modal
+  useEffect(() => {
+    if (isOpen) {
+      setForm(getStoredMqttConfig())
+      setSavedSuccess(false)
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 

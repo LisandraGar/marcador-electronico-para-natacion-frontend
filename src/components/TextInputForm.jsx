@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Play,
   Pause,
@@ -18,18 +18,24 @@ export const TextInputForm = ({
   onTextSubmit,
   onColorChange,
   timeRTC,
+  setTimeRTC,
   timeChrono,
   setTimeChrono,
   userData = [],
+  setUserData,
   scores = [],
+  setScores,
   publish,
   temp = '28',
   setTemp,
   currentScreen = 'show',
+  onScreenChange,
   twoRecords = [],
+  isHardwareOnline = false,
 }) => {
   const [textColor, setTextColor] = useState('#10B981')
   const [timeInput, setTimeInput] = useState('12:00')
+  const [localTemp, setLocalTemp] = useState(temp)
   const [formData, setFormData] = useState({
     nombre: '',
     apellido: '',
@@ -37,17 +43,26 @@ export const TextInputForm = ({
     cedula: '',
   })
   const [formError, setFormError] = useState('')
-  const [isPlayChrono, setIsPlayChrono] = useState({})
+  const [runningSwimmerId, setRunningSwimmerId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [actionNotice, setActionNotice] = useState(null)
 
-  // Muestra una notificación temporal de acción completada
+  const colorDebounceRef = useRef(null)
+
+  // Sincronizar input de temperatura cuando el microcontrolador envía nueva medición
+  useEffect(() => {
+    if (temp !== undefined && temp !== null && temp !== '') {
+      setLocalTemp(temp)
+    }
+  }, [temp])
+
+  // Notificación visual de confirmación de acción
   const notifyAction = (text) => {
     setActionNotice(text)
     setTimeout(() => setActionNotice(null), 2500)
   }
 
-  // Centraliza el formato de texto para la matriz LED
+  // Centraliza el formato de texto para la matriz LED virtual
   const formatMatrixText = useCallback(
     (h, m, ampm, t, tc, tr, scr) => {
       const activeRecords = (scores && scores.length <= 2 && scores.length > 0) ? scores : (tr || [])
@@ -79,7 +94,7 @@ export const TextInputForm = ({
     [scores]
   )
 
-  // Actualiza el texto de la matriz cuando cambian el RTC, cronómetro, temperatura, pantalla o registros
+  // Actualiza el texto de la matriz cuando cambian las variables de estado
   useEffect(() => {
     const formatted = formatMatrixText(
       timeRTC?.hours ?? 0,
@@ -93,35 +108,84 @@ export const TextInputForm = ({
     onTextSubmit(formatted)
   }, [timeRTC, timeChrono, temp, twoRecords, currentScreen, formatMatrixText, onTextSubmit])
 
-  // Control del cronómetro por nadador (Play / Pausa)
-  const handleChronoToggle = (id) => {
-    const currentState = Boolean(isPlayChrono[id])
-    const nextState = !currentState
-    setIsPlayChrono((prev) => ({ ...prev, [id]: nextState }))
+  // Detectar si el cronómetro activo fue detenido externamente (sensor táctil de llegada en piscina o ESP32)
+  useEffect(() => {
+    if (runningSwimmerId && scores && scores.length > 0) {
+      const swimmerHasFinished = scores.some((s) => String(s.id) === String(runningSwimmerId))
+      if (swimmerHasFinished) {
+        setRunningSwimmerId(null)
+      }
+    }
+  }, [scores, runningSwimmerId])
 
-    const command = nextState ? `play_chrono:${id}` : `pause_chrono:${id}`
-    publish('esp32s3/chrono', command)
-    notifyAction(`${nextState ? 'Iniciado' : 'Pausado'} cronómetro #${id}`)
+  // Control del cronómetro por nadador (Play / Pausa con exclusión mutua de hardware)
+  const handleChronoToggle = (id) => {
+    const swimmerIdStr = String(id)
+    const isCurrentlyRunning = String(runningSwimmerId) === swimmerIdStr
+
+    if (isCurrentlyRunning) {
+      // Pausar cronómetro
+      setRunningSwimmerId(null)
+      publish('esp32s3/chrono', `pause_chrono:${swimmerIdStr}`, { qos: 1 })
+      notifyAction(`Pausado cronómetro #${id}`)
+    } else {
+      // Si había otro nadador corriendo, pausar primero para no desbordar el timer
+      if (runningSwimmerId) {
+        publish('esp32s3/chrono', `pause_chrono:${runningSwimmerId}`, { qos: 1 })
+      }
+      setRunningSwimmerId(swimmerIdStr)
+      publish('esp32s3/chrono', `play_chrono:${swimmerIdStr}`, { qos: 1 })
+      notifyAction(`Iniciado cronómetro para nadador #${id}`)
+    }
   }
 
   // Reiniciar score/tiempo de un nadador
   const handleResetScore = (id) => {
-    publish('esp32s3/del_score', String(id))
-    publish('esp32s3/get_users', 'get_users')
-    setTimeChrono({ id: null, hh: null, mm: null, ss: null, ms: null })
-    setIsPlayChrono((prev) => ({ ...prev, [id]: false }))
+    const swimmerIdStr = String(id)
+
+    // Actualización optimista de la UI
+    setScores?.((prev) => prev.filter((s) => String(s.id) !== swimmerIdStr))
+
+    if (String(runningSwimmerId) === swimmerIdStr) {
+      setRunningSwimmerId(null)
+      setTimeChrono?.({ id: null, hh: null, mm: null, ss: null, ms: null })
+    }
+
+    publish('esp32s3/del_score', swimmerIdStr, { qos: 1 })
+
+    // Sincronización con el microcontrolador tras escritura en flash
+    setTimeout(() => {
+      publish('esp32s3/get_users', 'get_users', { qos: 1 })
+    }, 250)
+
     notifyAction(`Tiempo reiniciado para nadador #${id}`)
   }
 
   // Eliminar nadador definitivamente
   const handleDeleteUser = (id) => {
-    publish('esp32s3/del_record', String(id))
-    publish('esp32s3/get_users', 'get_users')
+    const swimmerIdStr = String(id)
+
+    // Actualización optimista inmediata
+    setUserData?.((prev) => prev.filter((u) => String(u.id) !== swimmerIdStr))
+    setScores?.((prev) => prev.filter((s) => String(s.id) !== swimmerIdStr))
+
+    if (String(runningSwimmerId) === swimmerIdStr) {
+      setRunningSwimmerId(null)
+      setTimeChrono?.({ id: null, hh: null, mm: null, ss: null, ms: null })
+    }
+
+    publish('esp32s3/del_record', swimmerIdStr, { qos: 1 })
+
+    // Sincronizar tras almacenamiento en flash
+    setTimeout(() => {
+      publish('esp32s3/get_users', 'get_users', { qos: 1 })
+    }, 250)
+
     setConfirmDeleteId(null)
     notifyAction(`Nadador #${id} eliminado`)
   }
 
-  // Agregar nuevo nadador
+  // Agregar nuevo nadador evitando colisión de IDs
   const handleAddUser = (e) => {
     e?.preventDefault()
     setFormError('')
@@ -135,7 +199,10 @@ export const TextInputForm = ({
       return
     }
 
-    const nextId = (userData?.length || 0) + 1
+    // Cálculo robusto del próximo ID para evitar duplicados si se borran nadadores intermedios
+    const maxId = (userData || []).reduce((max, u) => Math.max(max, Number(u.id) || 0), 0)
+    const nextId = maxId + 1
+
     const payload = {
       id: nextId,
       nombre: formData.nombre.trim(),
@@ -144,16 +211,36 @@ export const TextInputForm = ({
       cedula: formData.cedula.trim(),
     }
 
-    publish('esp32s3/new_user', JSON.stringify(payload))
-    publish('esp32s3/get_users', 'get_users')
+    // Actualización optimista inmediata en la UI
+    setUserData?.((prev) => [...prev, payload])
+
+    publish('esp32s3/new_user', JSON.stringify(payload), { qos: 1 })
+
+    setTimeout(() => {
+      publish('esp32s3/get_users', 'get_users', { qos: 1 })
+    }, 250)
+
     setFormData({ nombre: '', apellido: '', edad: '', cedula: '' })
     notifyAction(`Nadador ${payload.nombre} registrado con éxito`)
   }
 
-  // Ajustar hora RTC manual
+  // Ajustar hora RTC manual con actualización optimista inmediata
   const sendTimeToRTC = () => {
     if (!timeInput) return
-    publish('esp32s3/settime', timeInput)
+
+    const parts = timeInput.split(':')
+    if (parts.length === 2) {
+      const h = Number(parts[0])
+      const m = Number(parts[1])
+      setTimeRTC?.({
+        hours: h,
+        minutes: m,
+        seconds: 0,
+        ampm: h >= 12 ? 'PM' : 'AM',
+      })
+    }
+
+    publish('esp32s3/settime', timeInput, { qos: 1 })
     notifyAction(`Hora RTC enviada: ${timeInput}`)
   }
 
@@ -164,56 +251,84 @@ export const TextInputForm = ({
     const mm = String(now.getMinutes()).padStart(2, '0')
     const localTime = `${hh}:${mm}`
     setTimeInput(localTime)
-    publish('esp32s3/settime', localTime)
+
+    setTimeRTC?.({
+      hours: now.getHours(),
+      minutes: now.getMinutes(),
+      seconds: now.getSeconds(),
+      ampm: now.getHours() >= 12 ? 'PM' : 'AM',
+    })
+
+    publish('esp32s3/settime', localTime, { qos: 1 })
     notifyAction(`Hora sincronizada con dispositivo: ${localTime}`)
   }
 
-  // Cambio de temperatura
+  // Cambio de temperatura con validación
   const sendTempToDisplay = () => {
-    publish('esp32s3/settemp', String(temp))
-    notifyAction(`Temperatura configurada: ${temp}°C`)
-  }
-
-  const handleChangeTemp = (e) => {
-    const value = e.target.value
-    if (value === '') {
-      setTemp('')
+    if (localTemp === '' || localTemp === null) return
+    const num = Number(localTemp)
+    if (isNaN(num) || num < 10 || num > 60) {
+      notifyAction('La temperatura debe estar entre 10°C y 60°C')
       return
     }
-    const num = Number(value)
-    if (!isNaN(num) && num >= 10 && num <= 60) {
-      setTemp(value)
-    }
+
+    setTemp?.(String(localTemp))
+    publish('esp32s3/settemp', String(localTemp), { qos: 1 })
+    notifyAction(`Temperatura configurada: ${localTemp}°C`)
   }
 
-  // Color de texto
+  // Selector de Color con debouncing para no saturar el bus MQTT ni la memoria flash del ESP32
   const handleTextColorChange = (color) => {
     setTextColor(color)
     onColorChange?.(color)
-    publish('esp32s3/setcolor', color)
+
+    if (colorDebounceRef.current) {
+      clearTimeout(colorDebounceRef.current)
+    }
+    colorDebounceRef.current = setTimeout(() => {
+      publish('esp32s3/setcolor', color, { qos: 1 })
+    }, 150)
   }
 
-  // Cambio de modo de pantalla
+  // Cambio instantáneo de modo de pantalla
   const handleScreenType = (type) => {
-    publish('esp32s3/screen_type', type)
+    onScreenChange?.(type)
+    publish('esp32s3/screen_type', type, { qos: 1 })
     notifyAction(`Pantalla cambiada a modo ${type === 'chrono' ? 'CRONÓMETRO' : 'VISUALIZACIÓN'}`)
   }
 
+  // Construcción de la lista de nadadores con cálculo de tiempo en vivo si están corriendo
   const swimmersList = useMemo(() => {
     return (userData || []).map((user) => {
+      const isRunning = String(runningSwimmerId) === String(user.id)
       const userScore = scores?.find((s) => String(s.id) === String(user.id))
-      const hh = String(userScore?.hh ?? 0).padStart(2, '0')
-      const mm = String(userScore?.mm ?? 0).padStart(2, '0')
-      const ss = String(userScore?.ss ?? 0).padStart(2, '0')
-      const ms = String(userScore?.ms ?? 0).padStart(2, '0')
-      const timeFormatted = `${hh}:${mm}:${ss}.${ms}`
+
+      let timeFormatted = '00:00:00.00'
+
+      if (isRunning && timeChrono?.id && String(timeChrono.id) === String(user.id)) {
+        // Mostrar tiempo en vivo que viene del cronómetro activo
+        const hh = String(timeChrono.hh ?? 0).padStart(2, '0')
+        const mm = String(timeChrono.mm ?? 0).padStart(2, '0')
+        const ss = String(timeChrono.ss ?? 0).padStart(2, '0')
+        const ms = String(timeChrono.ms ?? 0).padStart(2, '0')
+        timeFormatted = `${hh}:${mm}:${ss}.${ms}`
+      } else if (userScore) {
+        // Mostrar récord guardado
+        const hh = String(userScore.hh ?? 0).padStart(2, '0')
+        const mm = String(userScore.mm ?? 0).padStart(2, '0')
+        const ss = String(userScore.ss ?? 0).padStart(2, '0')
+        const ms = String(userScore.ms ?? 0).padStart(2, '0')
+        timeFormatted = `${hh}:${mm}:${ss}.${ms}`
+      }
+
       return {
         ...user,
         timeFormatted,
         hasScore: Boolean(userScore),
+        isRunning,
       }
     })
-  }, [userData, scores])
+  }, [userData, scores, runningSwimmerId, timeChrono])
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
@@ -239,6 +354,12 @@ export const TextInputForm = ({
                 <h3 className="text-sm font-bold font-mono text-gray-200 uppercase tracking-wider">
                   Nadadores y Tiempos de Competencia
                 </h3>
+                {isHardwareOnline && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Sincronizado
+                  </span>
+                )}
               </div>
               <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
                 {swimmersList.length} {swimmersList.length === 1 ? 'Nadador' : 'Nadadores'}
@@ -256,7 +377,7 @@ export const TextInputForm = ({
                 {/* Vista Tarjetas para Móviles (hidden en md+) */}
                 <div className="block md:hidden space-y-3">
                   {swimmersList.map((swimmer) => {
-                    const isRunning = Boolean(isPlayChrono[swimmer.id])
+                    const isRunning = swimmer.isRunning
                     return (
                       <div
                         key={swimmer.cedula || swimmer.id}
@@ -367,7 +488,7 @@ export const TextInputForm = ({
                     </thead>
                     <tbody className="divide-y divide-gray-800/60">
                       {swimmersList.map((swimmer) => {
-                        const isRunning = Boolean(isPlayChrono[swimmer.id])
+                        const isRunning = swimmer.isRunning
                         return (
                           <tr
                             key={swimmer.cedula || swimmer.id}
@@ -386,7 +507,7 @@ export const TextInputForm = ({
                               <span
                                 className={`px-2 py-0.5 rounded font-bold ${
                                   isRunning
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse'
                                     : 'text-gray-300'
                                 }`}
                               >
@@ -461,7 +582,7 @@ export const TextInputForm = ({
                 <UserPlus size={15} className="text-emerald-400" />
                 <span>Registrar Nuevo Nadador</span>
                 <span className="text-[10px] text-gray-500 font-normal ml-auto">
-                  Siguiente ID: #{(userData?.length || 0) + 1}
+                  Siguiente ID: #{(userData || []).reduce((max, u) => Math.max(max, Number(u.id) || 0), 0) + 1}
                 </span>
               </div>
 
@@ -474,31 +595,47 @@ export const TextInputForm = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                 <input
                   type="text"
+                  id="swimmer-nombre"
+                  name="nombre"
+                  autoComplete="given-name"
                   placeholder="Nombre *"
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                   className="bg-gray-850 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-100 font-mono focus:border-emerald-500 focus:outline-none"
+                  aria-label="Nombre del nadador"
                 />
                 <input
                   type="text"
+                  id="swimmer-apellido"
+                  name="apellido"
+                  autoComplete="family-name"
                   placeholder="Apellido"
                   value={formData.apellido}
                   onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
                   className="bg-gray-850 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-100 font-mono focus:border-emerald-500 focus:outline-none"
+                  aria-label="Apellido del nadador"
                 />
                 <input
                   type="number"
+                  id="swimmer-edad"
+                  name="edad"
+                  autoComplete="off"
                   placeholder="Edad"
                   value={formData.edad}
                   onChange={(e) => setFormData({ ...formData, edad: e.target.value })}
                   className="bg-gray-850 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-100 font-mono focus:border-emerald-500 focus:outline-none"
+                  aria-label="Edad del nadador"
                 />
                 <input
                   type="text"
+                  id="swimmer-cedula"
+                  name="cedula"
+                  autoComplete="off"
                   placeholder="Cédula / DNI *"
                   value={formData.cedula}
                   onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
                   className="bg-gray-850 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-100 font-mono focus:border-emerald-500 focus:outline-none"
+                  aria-label="Cédula o DNI del nadador"
                 />
               </div>
 
@@ -570,6 +707,9 @@ export const TextInputForm = ({
             <div className="flex items-center gap-2">
               <input
                 type="time"
+                id="rtc-time-input"
+                name="rtcTime"
+                aria-label="Ajustar hora RTC"
                 value={timeInput}
                 onChange={(e) => setTimeInput(e.target.value)}
                 className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-emerald-300 font-mono focus:border-emerald-500 focus:outline-none"
@@ -608,10 +748,13 @@ export const TextInputForm = ({
             <div className="flex items-center gap-2">
               <input
                 type="number"
+                id="temperature-input"
+                name="temperature"
+                aria-label="Ajustar temperatura ambiente"
                 min="10"
                 max="60"
-                value={temp}
-                onChange={handleChangeTemp}
+                value={localTemp}
+                onChange={(e) => setLocalTemp(e.target.value)}
                 placeholder="28"
                 className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-emerald-300 font-mono focus:border-emerald-500 focus:outline-none"
               />

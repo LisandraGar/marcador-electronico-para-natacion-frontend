@@ -19,8 +19,8 @@ export function getStoredMqttConfig() {
       return {
         host: parsed.host?.trim() || envHost,
         port: parsed.port?.trim() || envPort,
-        username: parsed.username ?? envUser,
-        password: parsed.password ?? envPass,
+        username: parsed.username?.trim() ? parsed.username.trim() : envUser,
+        password: parsed.password?.trim() ? parsed.password.trim() : envPass,
         isCustom: true,
       };
     }
@@ -68,7 +68,11 @@ export const useMQTT = (topics = []) => {
   const [status, setStatus] = useState('connecting'); // 'connecting' | 'connected' | 'reconnecting' | 'offline' | 'error'
   const [error, setError] = useState(null);
   const [config, setConfig] = useState(getStoredMqttConfig);
+  const [isHardwareOnline, setIsHardwareOnline] = useState(false);
+  const [lastConnectionTime, setLastConnectionTime] = useState(null);
+
   const clientRef = useRef(null);
+  const pendingQueueRef = useRef([]); // Cola de mensajes pendientes si no está conectado
 
   // Escuchar cambios en la configuración guardada
   useEffect(() => {
@@ -82,6 +86,16 @@ export const useMQTT = (topics = []) => {
   const topicsRef = useRef(topics);
   useEffect(() => {
     topicsRef.current = topics;
+    // Si ya está conectado y la lista de tópicos cambia, suscribir nuevos tópicos
+    if (clientRef.current?.connected) {
+      topics.forEach((topic) => {
+        clientRef.current.subscribe(topic, { qos: 1 }, (err) => {
+          if (err && import.meta.env.DEV) {
+            console.error(`❌ Error suscribiendo a ${topic}:`, err);
+          }
+        });
+      });
+    }
   }, [topics]);
 
   const topicsKey = topics.join(',');
@@ -100,22 +114,26 @@ export const useMQTT = (topics = []) => {
     }
 
     const brokerUrl = `wss://${config.host}:${config.port || '8884'}/mqtt`;
+    const clientId = 'web_' + Math.random().toString(16).substring(2, 10);
 
     const options = {
+      clientId,
       username: config.username,
       password: config.password,
       protocol: 'wss',
       port: Number(config.port) || 8884,
-      reconnectPeriod: 5000,
-      connectTimeout: 20 * 1000,
-      rejectUnauthorized: false, // Requerido para brokers tipo HiveMQ Cloud WSS
+      clean: true,
+      keepalive: 30,
+      reconnectPeriod: 2000,
+      connectTimeout: 15 * 1000,
+      rejectUnauthorized: false,
     };
 
     setStatus('connecting');
     setError(null);
 
     if (import.meta.env.DEV) {
-      console.log('🔗 Conectando a broker MQTT:', brokerUrl);
+      console.log('🔗 Conectando a broker MQTT:', brokerUrl, 'Usuario:', config.username);
     }
 
     let client = null;
@@ -131,28 +149,52 @@ export const useMQTT = (topics = []) => {
     client.on('connect', () => {
       setStatus('connected');
       setError(null);
+      setLastConnectionTime(Date.now());
 
-      // Suscribirse a cada topic de la lista
+      if (import.meta.env.DEV) {
+        console.log('✅ Conectado exitosamente al broker MQTT HiveMQ');
+      }
+
+      // Suscribirse a cada topic de la lista con QoS 1
       topicsRef.current.forEach((topic) => {
-        client.subscribe(topic, (err) => {
+        client.subscribe(topic, { qos: 1 }, (err) => {
           if (err && import.meta.env.DEV) {
             console.error(`❌ Error suscribiendo a ${topic}:`, err);
           }
         });
       });
+
+      // Procesar cola de mensajes pendientes
+      if (pendingQueueRef.current.length > 0) {
+        const queue = [...pendingQueueRef.current];
+        pendingQueueRef.current = [];
+        queue.forEach(({ topic, payload, opts }) => {
+          client.publish(topic, payload, opts);
+        });
+      }
     });
 
     client.on('message', (topic, payload) => {
       const text = payload.toString();
-      setMessages((prev) => ({
-        ...prev,
-        [topic]: text,
-      }));
+
+      // Detección automática del estado del hardware ESP32
+      if (topic === 'esp32s3/status') {
+        setIsHardwareOnline(text === 'online');
+      }
+
+      setMessages((prev) => {
+        // Optimización de rendimiento: no crear nuevo objeto si el mensaje es idéntico
+        if (prev[topic] === text) return prev;
+        return {
+          ...prev,
+          [topic]: text,
+        };
+      });
     });
 
     client.on('error', (err) => {
       setStatus('error');
-      setError(err?.message || 'Error desconocido en conexión MQTT');
+      setError(err?.message || 'Error en conexión MQTT');
     });
 
     client.on('reconnect', () => {
@@ -174,15 +216,36 @@ export const useMQTT = (topics = []) => {
     };
   }, [config.host, config.port, config.username, config.password, topicsKey]);
 
-  const publish = useCallback((topic, message) => {
+  /**
+   * Publica un mensaje en un topic MQTT con soporte para QoS y cola de respaldo
+   */
+  const publish = useCallback((topic, message, options = { qos: 1 }) => {
+    const payload = typeof message === 'string' ? message : JSON.stringify(message);
+
     if (!clientRef.current || !clientRef.current.connected) {
       if (import.meta.env.DEV) {
-        console.warn('⚠️ No se puede publicar: Cliente MQTT no conectado');
+        console.warn(`⚠️ Cliente MQTT no conectado. Encolando publicación en "${topic}"`);
+      }
+      // Mantener máximo 20 mensajes en cola para evitar consumo de memoria
+      if (pendingQueueRef.current.length < 20) {
+        pendingQueueRef.current.push({ topic, payload, opts: options });
       }
       return false;
     }
-    clientRef.current.publish(topic, typeof message === 'string' ? message : JSON.stringify(message));
-    return true;
+
+    try {
+      clientRef.current.publish(topic, payload, options, (err) => {
+        if (err && import.meta.env.DEV) {
+          console.error(`❌ Error publicando en ${topic}:`, err);
+        }
+      });
+      return true;
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error(`❌ Excepción al publicar en ${topic}:`, err);
+      }
+      return false;
+    }
   }, []);
 
   const isConnected = status === 'connected';
@@ -190,9 +253,11 @@ export const useMQTT = (topics = []) => {
   return {
     messages,
     isConnected,
+    isHardwareOnline,
     status,
     error,
     publish,
     config,
+    lastConnectionTime,
   };
 };

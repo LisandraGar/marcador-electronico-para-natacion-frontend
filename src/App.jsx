@@ -12,14 +12,14 @@ import {
   RefreshCw,
   Clock,
   Thermometer,
-  AlertCircle
+  AlertCircle,
+  Cpu
 } from 'lucide-react'
 
 function App() {
   const [displayText, setDisplayText] = useState('')
   const [textColor, setTextColor] = useState('#10B981')
-  const [inactiveColor, setInactiveColor] = useState('#181b22')
-  const [isGetUsers, setIsGetUsers] = useState(false)
+  const inactiveColor = '#181b22'
   const [userData, setUserData] = useState([])
   const [temp, setTemp] = useState('28')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -48,7 +48,7 @@ function App() {
 
   const mqttTopics = useMemo(
     () => [
-      'esp32s3/settemp',
+      'esp32s3/status',
       'esp32s3/user_data',
       'esp32s3/send_time',
       'esp32s3/send_chrono',
@@ -60,16 +60,30 @@ function App() {
     []
   )
 
-  const { messages, isConnected, status, error, publish, config } = useMQTT(mqttTopics)
+  const {
+    messages,
+    isConnected,
+    isHardwareOnline,
+    status,
+    error,
+    publish,
+    config,
+    lastConnectionTime,
+  } = useMQTT(mqttTopics)
 
-  // Solicitar datos al conectar con el microcontrolador
+  // Solicitar datos al conectar o reconectar con el broker MQTT
   useEffect(() => {
-    if (isConnected && !isGetUsers) {
-      publish('esp32s3/get_users', '')
-      publish('esp32s3/get_color', '')
-      setIsGetUsers(true)
+    if (isConnected) {
+      publish('esp32s3/get_users', 'get_users', { qos: 1 })
     }
-  }, [isConnected, isGetUsers, publish])
+  }, [isConnected, lastConnectionTime, publish])
+
+  // Si el hardware ESP32 cambia a estado 'online', actualizar inmediatamente
+  useEffect(() => {
+    if (isHardwareOnline) {
+      publish('esp32s3/get_users', 'get_users', { qos: 1 })
+    }
+  }, [isHardwareOnline, publish])
 
   // Procesar datos de usuario y récords
   useEffect(() => {
@@ -102,7 +116,7 @@ function App() {
     }
   }, [messages])
 
-  // Procesar tiempo del cronómetro
+  // Procesar tiempo del cronómetro en vivo
   useEffect(() => {
     const rawChrono = messages['esp32s3/send_chrono']
     if (!rawChrono) return
@@ -158,8 +172,7 @@ function App() {
 
   const handleRefreshData = useCallback(() => {
     if (isConnected) {
-      publish('esp32s3/get_users', '')
-      publish('esp32s3/get_color', '')
+      publish('esp32s3/get_users', 'get_users', { qos: 1 })
     }
   }, [isConnected, publish])
 
@@ -204,6 +217,23 @@ function App() {
             <div className="hidden sm:flex items-center gap-1.5 bg-gray-850 px-2.5 py-1 rounded-lg border border-gray-700/60 text-xs font-mono text-emerald-300">
               <Thermometer size={13} className="text-emerald-400" />
               <span>{temp}°C</span>
+            </div>
+
+            {/* Indicador de Hardware ESP32 */}
+            <div
+              className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-mono ${
+                isHardwareOnline
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-gray-850 border-gray-700/60 text-gray-400'
+              }`}
+              title={
+                isHardwareOnline
+                  ? 'ESP32 MatrixPortal conectado y activo'
+                  : 'ESP32 en espera o apagado (el broker reenviará al conectar)'
+              }
+            >
+              <Cpu size={13} className={isHardwareOnline ? 'text-emerald-400' : 'text-gray-500'} />
+              <span>{isHardwareOnline ? 'ESP32 OK' : 'ESP32 Espera'}</span>
             </div>
 
             {/* Botón de Refresco de datos */}
@@ -288,17 +318,21 @@ function App() {
           <TextInputForm
             onTextSubmit={setDisplayText}
             onColorChange={setTextColor}
-            setInactiveColor={setInactiveColor}
             timeChrono={timeChrono}
             setTimeChrono={setTimeChrono}
             timeRTC={timeRTC}
+            setTimeRTC={setTimeRTC}
             userData={userData}
+            setUserData={setUserData}
             scores={scores}
+            setScores={setScores}
             publish={publish}
             temp={temp}
             setTemp={setTemp}
             currentScreen={currentScreen}
+            onScreenChange={setCurrentScreen}
             twoRecords={twoRecords}
+            isHardwareOnline={isHardwareOnline}
           />
         </section>
       </main>
