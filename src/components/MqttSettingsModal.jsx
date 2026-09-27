@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Save, RotateCcw, ShieldCheck, Radio, Eye, EyeOff } from 'lucide-react'
+import { X, Save, RotateCcw, ShieldCheck, Radio, Eye, EyeOff, Lock, Unlock } from 'lucide-react'
 import { getStoredMqttConfig, saveStoredMqttConfig, resetStoredMqttConfig } from '../hooks/use-mqtt'
 
 export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError }) => {
@@ -17,14 +17,25 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
 
   if (!isOpen) return null
 
+  const isGuestSelected = (form.username || '').toLowerCase().includes('invitado')
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name]: value }))
     setSavedSuccess(false)
   }
 
+  const handleSelectPreset = (user, pass) => {
+    setForm((prev) => ({
+      ...prev,
+      username: user,
+      password: pass,
+    }))
+    setSavedSuccess(false)
+  }
+
   const handleSave = (e) => {
-    e.preventDefault()
+    e?.preventDefault()
     saveStoredMqttConfig({
       host: form.host.trim(),
       port: form.port.trim(),
@@ -65,7 +76,7 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
         </div>
 
         {/* Status banner */}
-        <div className="px-6 pt-4">
+        <div className="px-6 pt-4 space-y-2">
           <div className={`p-3 rounded-lg border text-xs font-mono flex items-center gap-2 ${
             currentStatus === 'connected'
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
@@ -81,16 +92,72 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
               {currentError && ` — ${currentError}`}
             </span>
           </div>
+
+          {/* Badge del Rol Activo */}
+          <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono flex items-center justify-between ${
+            isGuestSelected
+              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
+              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+          }`}>
+            <div className="flex items-center gap-1.5">
+              {isGuestSelected ? <Lock size={14} className="text-cyan-400" /> : <Unlock size={14} className="text-emerald-400" />}
+              <span>
+                Perfil: <strong>{isGuestSelected ? 'Modo Espectador' : 'Modo Operador'}</strong>
+              </span>
+            </div>
+            <span className="text-[10px] uppercase font-bold opacity-80">
+              {isGuestSelected ? 'Solo Lectura' : 'Control Total'}
+            </span>
+          </div>
         </div>
 
         {/* Modal Form */}
         <form onSubmit={handleSave} className="p-6 space-y-4">
+          {/* Selector Rápido de Perfil: Espectador vs Operador */}
+          <div className="space-y-1.5 pb-2 border-b border-gray-800">
+            <span className="block text-[11px] font-mono uppercase tracking-wider text-gray-400">
+              Seleccionar Perfil de Acceso Rápido:
+            </span>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleSelectPreset('marcador_web_invitado', 'marcador_web_invitado')}
+                className={`p-2.5 rounded-xl border text-xs font-mono font-medium flex flex-col items-center justify-center transition-all ${
+                  isGuestSelected
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <span className="font-bold flex items-center gap-1">
+                  <Lock size={12} /> Espectador
+                </span>
+                <span className="text-[10px] opacity-75">Solo Lectura (Público)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectPreset('marcador_web', 'LisA142.*')}
+                className={`p-2.5 rounded-xl border text-xs font-mono font-medium flex flex-col items-center justify-center transition-all ${
+                  !isGuestSelected
+                    ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <span className="font-bold flex items-center gap-1">
+                  <Unlock size={12} /> Operador
+                </span>
+                <span className="text-[10px] opacity-75">Control Total (Mesa)</span>
+              </button>
+            </div>
+          </div>
+
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
+            <label htmlFor="mqtt-host-input" className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
               Host / URL del Broker (sin wss://)
             </label>
             <input
               type="text"
+              id="mqtt-host-input"
               name="host"
               value={form.host}
               onChange={handleChange}
@@ -102,11 +169,12 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
+              <label htmlFor="mqtt-port-input" className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
                 Puerto WSS
               </label>
               <input
                 type="number"
+                id="mqtt-port-input"
                 name="port"
                 value={form.port}
                 onChange={handleChange}
@@ -116,11 +184,12 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
               />
             </div>
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
+              <label htmlFor="mqtt-user-input" className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
                 Usuario MQTT
               </label>
               <input
                 type="text"
+                id="mqtt-user-input"
                 name="username"
                 value={form.username}
                 onChange={handleChange}
@@ -131,12 +200,13 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
           </div>
 
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
+            <label htmlFor="mqtt-pass-input" className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
               Contraseña MQTT
             </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
+                id="mqtt-pass-input"
                 name="password"
                 value={form.password}
                 onChange={handleChange}
@@ -158,7 +228,7 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
           <div className="text-[11px] text-gray-400 bg-gray-800/60 p-2.5 rounded-lg border border-gray-800 flex items-start gap-2">
             <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
             <span>
-              Estos ajustes se almacenan localmente en este navegador. Permite operar la pantalla desde una tablet o móvil al borde de la piscina sin necesidad de recompilar.
+              Estos ajustes se almacenan localmente en este navegador. El modo espectador es el predeterminado para el público general.
             </span>
           </div>
 
@@ -174,10 +244,10 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
               type="button"
               onClick={handleReset}
               className="flex items-center gap-1.5 text-xs font-mono text-gray-400 hover:text-gray-200 transition-colors px-2 py-1.5 rounded hover:bg-gray-800"
-              title="Restablecer a valores de .env"
+              title="Restablecer a valores por defecto (Invitado)"
             >
               <RotateCcw size={14} />
-              Valores por defecto (.env)
+              Valores por defecto
             </button>
 
             <div className="flex gap-2">

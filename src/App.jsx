@@ -64,6 +64,7 @@ function App() {
     messages,
     isConnected,
     isHardwareOnline,
+    isReadOnly,
     status,
     error,
     publish,
@@ -71,19 +72,19 @@ function App() {
     lastConnectionTime,
   } = useMQTT(mqttTopics)
 
-  // Solicitar datos al conectar o reconectar con el broker MQTT
+  // Solicitar datos al conectar o reconectar con el broker MQTT (solo para operadores autorizados)
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && !isReadOnly) {
       publish('esp32s3/get_users', 'get_users', { qos: 1 })
     }
-  }, [isConnected, lastConnectionTime, publish])
+  }, [isConnected, isReadOnly, lastConnectionTime, publish])
 
-  // Si el hardware ESP32 cambia a estado 'online', actualizar inmediatamente
+  // Si el hardware ESP32 cambia a estado 'online', actualizar inmediatamente (operadores)
   useEffect(() => {
-    if (isHardwareOnline) {
+    if (isHardwareOnline && !isReadOnly) {
       publish('esp32s3/get_users', 'get_users', { qos: 1 })
     }
-  }, [isHardwareOnline, publish])
+  }, [isHardwareOnline, isReadOnly, publish])
 
   // Procesar datos de usuario y récords
   useEffect(() => {
@@ -171,10 +172,10 @@ function App() {
   }, [messages])
 
   const handleRefreshData = useCallback(() => {
-    if (isConnected) {
+    if (isConnected && !isReadOnly) {
       publish('esp32s3/get_users', 'get_users', { qos: 1 })
     }
-  }, [isConnected, publish])
+  }, [isConnected, isReadOnly, publish])
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -236,17 +237,32 @@ function App() {
               <span>{isHardwareOnline ? 'ESP32 OK' : 'ESP32 Espera'}</span>
             </div>
 
-            {/* Botón de Refresco de datos */}
+            {/* Badge de Rol de Usuario (Espectador vs Operador) */}
             <button
-              onClick={handleRefreshData}
-              disabled={!isConnected}
-              className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-gray-850 hover:bg-gray-800 disabled:opacity-40 disabled:pointer-events-none text-gray-300 border border-gray-700/60 font-mono text-xs flex items-center gap-1.5 transition-colors"
-              title="Solicitar datos actualizados al ESP32"
-              aria-label="Actualizar datos"
+              onClick={() => setIsSettingsOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition-all ${
+                isReadOnly
+                  ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20'
+                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
+              }`}
+              title="Click para cambiar entre Modo Espectador y Modo Operador"
             >
-              <RefreshCw size={14} className={isConnected ? 'hover:rotate-180 transition-transform' : ''} />
-              <span className="hidden lg:inline">Actualizar</span>
+              <span>{isReadOnly ? '👁️ Espectador' : '⚡ Operador'}</span>
             </button>
+
+            {/* Botón de Refresco de datos (solo operadores) */}
+            {!isReadOnly && (
+              <button
+                onClick={handleRefreshData}
+                disabled={!isConnected}
+                className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-gray-850 hover:bg-gray-800 disabled:opacity-40 disabled:pointer-events-none text-gray-300 border border-gray-700/60 font-mono text-xs flex items-center gap-1.5 transition-colors"
+                title="Solicitar datos actualizados al ESP32"
+                aria-label="Actualizar datos"
+              >
+                <RefreshCw size={14} className={isConnected ? 'hover:rotate-180 transition-transform' : ''} />
+                <span className="hidden lg:inline">Actualizar</span>
+              </button>
+            )}
 
             {/* Badge interactivo de Conexión MQTT */}
             <button
@@ -333,6 +349,8 @@ function App() {
             onScreenChange={setCurrentScreen}
             twoRecords={twoRecords}
             isHardwareOnline={isHardwareOnline}
+            isReadOnly={isReadOnly}
+            onOpenSettings={() => setIsSettingsOpen(true)}
           />
         </section>
       </main>
@@ -342,7 +360,7 @@ function App() {
         <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Sistema de Marcador Electrónico para Natación</span>
           <span>
-            Broker: <code className="text-gray-400">{config.host || 'No configurado'}</code>
+            Broker: <code className="text-gray-400">{config.host || 'No configurado'}</code> ({isReadOnly ? 'Espectador' : 'Operador'})
           </span>
         </div>
       </footer>

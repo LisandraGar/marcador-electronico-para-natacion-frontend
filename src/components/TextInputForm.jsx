@@ -10,7 +10,9 @@ import {
   Monitor,
   CheckCircle2,
   Users,
-  Timer
+  Timer,
+  Eye,
+  Lock
 } from 'lucide-react'
 import { ColorPicker } from './ColorPicker'
 
@@ -32,6 +34,8 @@ export const TextInputForm = ({
   onScreenChange,
   twoRecords = [],
   isHardwareOnline = false,
+  isReadOnly = true,
+  onOpenSettings,
 }) => {
   const [textColor, setTextColor] = useState('#10B981')
   const [timeInput, setTimeInput] = useState('12:00')
@@ -59,7 +63,13 @@ export const TextInputForm = ({
   // Notificación visual de confirmación de acción
   const notifyAction = (text) => {
     setActionNotice(text)
-    setTimeout(() => setActionNotice(null), 2500)
+    setTimeout(() => setActionNotice(null), 2800)
+  }
+
+  // Notificación para advertir que se requiere modo operador
+  const notifyReadOnly = () => {
+    notifyAction('⚠️ Modo Espectador (Solo Lectura): Abre Ajustes ⚙️ para acceder como Operador.')
+    onOpenSettings?.()
   }
 
   // Centraliza el formato de texto para la matriz LED virtual
@@ -118,21 +128,32 @@ export const TextInputForm = ({
     }
   }, [scores, runningSwimmerId])
 
-  // Control del cronómetro por nadador (Play / Pausa con exclusión mutua de hardware)
+  // Control del cronómetro por nadador (Play / Pausa)
   const handleChronoToggle = (id) => {
+    if (isReadOnly) {
+      notifyReadOnly()
+      return
+    }
+
     const swimmerIdStr = String(id)
     const isCurrentlyRunning = String(runningSwimmerId) === swimmerIdStr
 
     if (isCurrentlyRunning) {
-      // Pausar cronómetro
+      // Pausar cronómetro manualmente
       setRunningSwimmerId(null)
       publish('esp32s3/chrono', `pause_chrono:${swimmerIdStr}`, { qos: 1 })
       notifyAction(`Pausado cronómetro #${id}`)
     } else {
-      // Si había otro nadador corriendo, pausar primero para no desbordar el timer
+      // Si había otro nadador corriendo, pausar primero
       if (runningSwimmerId) {
         publish('esp32s3/chrono', `pause_chrono:${runningSwimmerId}`, { qos: 1 })
       }
+
+      // Limpiar puntaje previo de este nadador en la UI para que inicie limpio
+      // y no sea cancelado inmediatamente por el detector de finalización
+      setScores?.((prev) => prev.filter((s) => String(s.id) !== swimmerIdStr))
+
+      // Iniciar estado en vivo
       setRunningSwimmerId(swimmerIdStr)
       publish('esp32s3/chrono', `play_chrono:${swimmerIdStr}`, { qos: 1 })
       notifyAction(`Iniciado cronómetro para nadador #${id}`)
@@ -141,6 +162,11 @@ export const TextInputForm = ({
 
   // Reiniciar score/tiempo de un nadador
   const handleResetScore = (id) => {
+    if (isReadOnly) {
+      notifyReadOnly()
+      return
+    }
+
     const swimmerIdStr = String(id)
 
     // Actualización optimista de la UI
@@ -153,7 +179,6 @@ export const TextInputForm = ({
 
     publish('esp32s3/del_score', swimmerIdStr, { qos: 1 })
 
-    // Sincronización con el microcontrolador tras escritura en flash
     setTimeout(() => {
       publish('esp32s3/get_users', 'get_users', { qos: 1 })
     }, 250)
@@ -163,9 +188,13 @@ export const TextInputForm = ({
 
   // Eliminar nadador definitivamente
   const handleDeleteUser = (id) => {
+    if (isReadOnly) {
+      notifyReadOnly()
+      return
+    }
+
     const swimmerIdStr = String(id)
 
-    // Actualización optimista inmediata
     setUserData?.((prev) => prev.filter((u) => String(u.id) !== swimmerIdStr))
     setScores?.((prev) => prev.filter((s) => String(s.id) !== swimmerIdStr))
 
@@ -176,7 +205,6 @@ export const TextInputForm = ({
 
     publish('esp32s3/del_record', swimmerIdStr, { qos: 1 })
 
-    // Sincronizar tras almacenamiento en flash
     setTimeout(() => {
       publish('esp32s3/get_users', 'get_users', { qos: 1 })
     }, 250)
@@ -185,10 +213,15 @@ export const TextInputForm = ({
     notifyAction(`Nadador #${id} eliminado`)
   }
 
-  // Agregar nuevo nadador evitando colisión de IDs
+  // Agregar nuevo nadador
   const handleAddUser = (e) => {
     e?.preventDefault()
     setFormError('')
+
+    if (isReadOnly) {
+      notifyReadOnly()
+      return
+    }
 
     if (!formData.nombre.trim()) {
       setFormError('El nombre es obligatorio.')
@@ -199,7 +232,6 @@ export const TextInputForm = ({
       return
     }
 
-    // Cálculo robusto del próximo ID para evitar duplicados si se borran nadadores intermedios
     const maxId = (userData || []).reduce((max, u) => Math.max(max, Number(u.id) || 0), 0)
     const nextId = maxId + 1
 
@@ -211,7 +243,6 @@ export const TextInputForm = ({
       cedula: formData.cedula.trim(),
     }
 
-    // Actualización optimista inmediata en la UI
     setUserData?.((prev) => [...prev, payload])
 
     publish('esp32s3/new_user', JSON.stringify(payload), { qos: 1 })
@@ -224,8 +255,12 @@ export const TextInputForm = ({
     notifyAction(`Nadador ${payload.nombre} registrado con éxito`)
   }
 
-  // Ajustar hora RTC manual con actualización optimista inmediata
+  // Ajustar hora RTC manual
   const sendTimeToRTC = () => {
+    if (isReadOnly) {
+      notifyReadOnly()
+      return
+    }
     if (!timeInput) return
 
     const parts = timeInput.split(':')
@@ -246,6 +281,11 @@ export const TextInputForm = ({
 
   // Sincronizar RTC con el reloj local de la computadora/dispositivo
   const syncWithDeviceTime = () => {
+    if (isReadOnly) {
+      notifyReadOnly()
+      return
+    }
+
     const now = new Date()
     const hh = String(now.getHours()).padStart(2, '0')
     const mm = String(now.getMinutes()).padStart(2, '0')
@@ -265,6 +305,11 @@ export const TextInputForm = ({
 
   // Cambio de temperatura con validación
   const sendTempToDisplay = () => {
+    if (isReadOnly) {
+      notifyReadOnly()
+      return
+    }
+
     if (localTemp === '' || localTemp === null) return
     const num = Number(localTemp)
     if (isNaN(num) || num < 10 || num > 60) {
@@ -277,10 +322,15 @@ export const TextInputForm = ({
     notifyAction(`Temperatura configurada: ${localTemp}°C`)
   }
 
-  // Selector de Color con debouncing para no saturar el bus MQTT ni la memoria flash del ESP32
+  // Selector de Color
   const handleTextColorChange = (color) => {
     setTextColor(color)
     onColorChange?.(color)
+
+    if (isReadOnly) {
+      notifyAction('Color actualizado en pantalla virtual local (Modo Espectador)')
+      return
+    }
 
     if (colorDebounceRef.current) {
       clearTimeout(colorDebounceRef.current)
@@ -293,7 +343,9 @@ export const TextInputForm = ({
   // Cambio instantáneo de modo de pantalla
   const handleScreenType = (type) => {
     onScreenChange?.(type)
-    publish('esp32s3/screen_type', type, { qos: 1 })
+    if (!isReadOnly) {
+      publish('esp32s3/screen_type', type, { qos: 1 })
+    }
     notifyAction(`Pantalla cambiada a modo ${type === 'chrono' ? 'CRONÓMETRO' : 'VISUALIZACIÓN'}`)
   }
 
@@ -305,15 +357,17 @@ export const TextInputForm = ({
 
       let timeFormatted = '00:00:00.00'
 
-      if (isRunning && timeChrono?.id && String(timeChrono.id) === String(user.id)) {
-        // Mostrar tiempo en vivo que viene del cronómetro activo
-        const hh = String(timeChrono.hh ?? 0).padStart(2, '0')
-        const mm = String(timeChrono.mm ?? 0).padStart(2, '0')
-        const ss = String(timeChrono.ss ?? 0).padStart(2, '0')
-        const ms = String(timeChrono.ms ?? 0).padStart(2, '0')
-        timeFormatted = `${hh}:${mm}:${ss}.${ms}`
+      if (isRunning) {
+        if (timeChrono?.id && String(timeChrono.id) === String(user.id)) {
+          const hh = String(timeChrono.hh ?? 0).padStart(2, '0')
+          const mm = String(timeChrono.mm ?? 0).padStart(2, '0')
+          const ss = String(timeChrono.ss ?? 0).padStart(2, '0')
+          const ms = String(timeChrono.ms ?? 0).padStart(2, '0')
+          timeFormatted = `${hh}:${mm}:${ss}.${ms}`
+        } else {
+          timeFormatted = '00:00:00.00'
+        }
       } else if (userScore) {
-        // Mostrar récord guardado
         const hh = String(userScore.hh ?? 0).padStart(2, '0')
         const mm = String(userScore.mm ?? 0).padStart(2, '0')
         const ss = String(userScore.ss ?? 0).padStart(2, '0')
@@ -340,7 +394,37 @@ export const TextInputForm = ({
         </div>
       )}
 
-      {/* Grid principal responsive: 1 columna en móvil, 12 columnas en pantallas grandes */}
+      {/* Banner de Modo Espectador */}
+      {isReadOnly && (
+        <div className="bg-cyan-950/40 border border-cyan-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono text-cyan-200 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+              <Eye size={20} />
+            </div>
+            <div>
+              <div className="font-bold text-white flex items-center gap-2">
+                <span>Modo Espectador Activo</span>
+                <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">
+                  Solo Lectura
+                </span>
+              </div>
+              <p className="text-[11px] text-cyan-300/80 mt-0.5">
+                Visualizando tiempos y pantalla en tiempo real. Abre ajustes ⚙️ para acceder como Operador y controlar la competencia.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-mono font-medium shadow-md transition-all active:scale-95 shrink-0"
+          >
+            <Lock size={13} />
+            <span>Acceso Operador</span>
+          </button>
+        </div>
+      )}
+
+      {/* Grid principal responsive */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ========================================================
             COLUMNA IZQUIERDA: GESTIÓN DE NADADORES Y CRONÓMETRO (7 cols)
@@ -459,7 +543,13 @@ export const TextInputForm = ({
                           ) : (
                             <button
                               type="button"
-                              onClick={() => setConfirmDeleteId(swimmer.id)}
+                              onClick={() => {
+                                if (isReadOnly) {
+                                  notifyReadOnly()
+                                } else {
+                                  setConfirmDeleteId(swimmer.id)
+                                }
+                              }}
                               className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-red-400 hover:text-red-300 border border-gray-700 transition-colors"
                               title="Eliminar nadador"
                             >
@@ -558,7 +648,13 @@ export const TextInputForm = ({
                                 ) : (
                                   <button
                                     type="button"
-                                    onClick={() => setConfirmDeleteId(swimmer.id)}
+                                    onClick={() => {
+                                      if (isReadOnly) {
+                                        notifyReadOnly()
+                                      } else {
+                                        setConfirmDeleteId(swimmer.id)
+                                      }
+                                    }}
                                     className="p-1.5 rounded bg-gray-800 hover:bg-gray-700 text-red-400 border border-gray-700 transition-colors"
                                     title="Eliminar nadador"
                                   >

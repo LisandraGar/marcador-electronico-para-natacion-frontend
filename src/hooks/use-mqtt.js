@@ -7,10 +7,10 @@ const STORAGE_KEY = 'marcador_mqtt_config';
  * Obtiene la configuración activa de MQTT (localStorage con fallback a variables de entorno Vite)
  */
 export function getStoredMqttConfig() {
-  const envHost = import.meta.env.VITE_BROKER_URL || '';
+  const envHost = import.meta.env.VITE_BROKER_URL || '90ee163ce96e47e2ab0300d92f22e9d5.s1.eu.hivemq.cloud';
   const envPort = import.meta.env.VITE_WS_BROKER_PORT || '8884';
-  const envUser = import.meta.env.VITE_MQTT_USERNAME || '';
-  const envPass = import.meta.env.VITE_MQTT_PASSWORD || '';
+  const envUser = import.meta.env.VITE_MQTT_USERNAME || 'marcador_web_invitado';
+  const envPass = import.meta.env.VITE_MQTT_PASSWORD || 'marcador_web_invitado';
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -52,7 +52,7 @@ export function saveStoredMqttConfig(config) {
 }
 
 /**
- * Restablece la configuración activa a los valores por defecto del .env
+ * Restablece la configuración activa a los valores por defecto del .env (Modo Invitado)
  */
 export function resetStoredMqttConfig() {
   try {
@@ -72,7 +72,10 @@ export const useMQTT = (topics = []) => {
   const [lastConnectionTime, setLastConnectionTime] = useState(null);
 
   const clientRef = useRef(null);
-  const pendingQueueRef = useRef([]); // Cola de mensajes pendientes si no está conectado
+  const pendingQueueRef = useRef([]);
+
+  // Detectar si el usuario actual es de solo lectura (Modo Invitado / Espectador)
+  const isReadOnly = (config.username || '').toLowerCase().includes('invitado');
 
   // Escuchar cambios en la configuración guardada
   useEffect(() => {
@@ -86,7 +89,6 @@ export const useMQTT = (topics = []) => {
   const topicsRef = useRef(topics);
   useEffect(() => {
     topicsRef.current = topics;
-    // Si ya está conectado y la lista de tópicos cambia, suscribir nuevos tópicos
     if (clientRef.current?.connected) {
       topics.forEach((topic) => {
         clientRef.current.subscribe(topic, { qos: 1 }, (err) => {
@@ -114,7 +116,7 @@ export const useMQTT = (topics = []) => {
     }
 
     const brokerUrl = `wss://${config.host}:${config.port || '8884'}/mqtt`;
-    const clientId = 'web_' + Math.random().toString(16).substring(2, 10);
+    const clientId = (isReadOnly ? 'guest_' : 'web_') + Math.random().toString(16).substring(2, 10);
 
     const options = {
       clientId,
@@ -133,7 +135,7 @@ export const useMQTT = (topics = []) => {
     setError(null);
 
     if (import.meta.env.DEV) {
-      console.log('🔗 Conectando a broker MQTT:', brokerUrl, 'Usuario:', config.username);
+      console.log('🔗 Conectando a broker MQTT:', brokerUrl, 'Usuario:', config.username, isReadOnly ? '(Espectador)' : '(Operador)');
     }
 
     let client = null;
@@ -152,7 +154,7 @@ export const useMQTT = (topics = []) => {
       setLastConnectionTime(Date.now());
 
       if (import.meta.env.DEV) {
-        console.log('✅ Conectado exitosamente al broker MQTT HiveMQ');
+        console.log(`✅ Conectado exitosamente como [${config.username}] (${isReadOnly ? 'Solo Lectura' : 'Control Total'})`);
       }
 
       // Suscribirse a cada topic de la lista con QoS 1
@@ -164,13 +166,15 @@ export const useMQTT = (topics = []) => {
         });
       });
 
-      // Procesar cola de mensajes pendientes
-      if (pendingQueueRef.current.length > 0) {
+      // Procesar cola de mensajes pendientes solo si tiene permisos de publicación
+      if (!isReadOnly && pendingQueueRef.current.length > 0) {
         const queue = [...pendingQueueRef.current];
         pendingQueueRef.current = [];
         queue.forEach(({ topic, payload, opts }) => {
           client.publish(topic, payload, opts);
         });
+      } else {
+        pendingQueueRef.current = [];
       }
     });
 
@@ -183,7 +187,6 @@ export const useMQTT = (topics = []) => {
       }
 
       setMessages((prev) => {
-        // Optimización de rendimiento: no crear nuevo objeto si el mensaje es idéntico
         if (prev[topic] === text) return prev;
         return {
           ...prev,
@@ -214,19 +217,26 @@ export const useMQTT = (topics = []) => {
         client.end(true);
       }
     };
-  }, [config.host, config.port, config.username, config.password, topicsKey]);
+  }, [config.host, config.port, config.username, config.password, isReadOnly, topicsKey]);
 
   /**
    * Publica un mensaje en un topic MQTT con soporte para QoS y cola de respaldo
    */
   const publish = useCallback((topic, message, options = { qos: 1 }) => {
+    // Si está en modo espectador (subscribe-only), no publicar para no generar errores de ACL
+    if (isReadOnly) {
+      if (import.meta.env.DEV) {
+        console.warn(`[Modo Espectador] Publicación omitida en "${topic}": el usuario es de solo lectura.`);
+      }
+      return false;
+    }
+
     const payload = typeof message === 'string' ? message : JSON.stringify(message);
 
     if (!clientRef.current || !clientRef.current.connected) {
       if (import.meta.env.DEV) {
         console.warn(`⚠️ Cliente MQTT no conectado. Encolando publicación en "${topic}"`);
       }
-      // Mantener máximo 20 mensajes en cola para evitar consumo de memoria
       if (pendingQueueRef.current.length < 20) {
         pendingQueueRef.current.push({ topic, payload, opts: options });
       }
@@ -246,7 +256,7 @@ export const useMQTT = (topics = []) => {
       }
       return false;
     }
-  }, []);
+  }, [isReadOnly]);
 
   const isConnected = status === 'connected';
 
@@ -254,6 +264,7 @@ export const useMQTT = (topics = []) => {
     messages,
     isConnected,
     isHardwareOnline,
+    isReadOnly,
     status,
     error,
     publish,
