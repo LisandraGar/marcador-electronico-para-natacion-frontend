@@ -26,16 +26,23 @@ La aplicación implementa un modelo de control de acceso por roles a nivel de re
 - **Permisos:** Solo Lectura (`Subscribe-Only` a nivel de broker HiveMQ).
 - **Destinatarios:** Público general, espectadores en gradas, nadadores y pantallas secundarias.
 - **Seguridad:** Cero riesgo de manipulación de la competencia o borrado de datos.
-- **Experiencia de usuario:**
-  - Visualización inmediata en tiempo real del marcador LED virtual y de los tiempos.
-  - Badge `👁️ Espectador` en la cabecera y banner informativo superior.
-  - Los controles de modificación están protegidos: si un espectador intenta interactuar, se muestra un aviso guiándole a autenticarse como operador.
+- **Experiencia de usuario intuitiva (Sin sobrecarga informativa):**
+  - Visualización inmediata en tiempo real del marcador LED virtual y de la tabla de tiempos.
+  - Ocultamiento de controles administrativos (no muestra botones de borrado ni formularios de registro innecesarios para el espectador).
+  - Badge `👁️ Espectador` en la cabecera y telemetría en vivo (temperatura, hora oficial y estado ESP32).
 
 ### 2. Modo Operador (`marcador_web`) — *Mesa Técnica / Juez*
 - **Permisos:** Control Total (`Publish` y `Subscribe`).
 - **Destinatarios:** Jueces de piscina, cronometristas y operadores técnicos.
-- **Acceso rápido:** Botón `⚡ Operador` en el modal de configuración ⚙️ para alternar sesión con 1 solo clic.
-- **Almacenamiento:** Credenciales guardadas localmente en el `localStorage` del dispositivo del operador sin exponerse en repositorios públicos.
+- **Acceso rápido y seguro:** Autenticación directa mediante contraseña de operador en la **Vista Simple** del modal, sin requerir reingresar Host, Puerto ni Usuarios técnicos.
+- **Interfaz organizada:**
+  - Panel de nadadores con registro colapsable (`＋ Nadador`).
+  - Panel de herramientas organizado por pestañas (`Color LED`, `Reloj RTC`, `Sensor Temp`) para evitar el desplazamiento vertical innecesario.
+  - Almacenamiento local seguro en `localStorage` sin exponer secretos en el repositorio.
+
+### 3. Modal MQTT con Vista Simple vs. Vista Avanzada
+- **Vista Simple:** Diseñada para el usuario final y operadores de mesa. Permite conmutar entre `Modo Espectador` y `Modo Operador` en 1 clic. Oculta Host, Puerto y datos técnicos innecesarios.
+- **Vista Avanzada:** Accesible con 1 clic para administradores de red o pruebas de laboratorio, permitiendo configurar Host WSS, Puerto, Broker local o restablecer valores de fábrica.
 
 ---
 
