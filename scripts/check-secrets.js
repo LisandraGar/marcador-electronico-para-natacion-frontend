@@ -43,6 +43,10 @@ const FORBIDDEN_CONTENT_PATTERNS = [
     name: 'Asignación de clave secreta (api_key, secret_key, client_secret)',
     regex: /^\+[ \t]*(api_key|secret_key|client_secret|auth_token)[ \t]*=[ \t]*['"][^\s'"]{8,}['"]/im,
   },
+  {
+    name: 'Contraseña maestra de operador MQTT detectada en código',
+    regex: new RegExp('^\\+[ \\t]*.*' + ['L','i','s','A','1','4','2'].join(''), 'i'),
+  },
 ]
 
 function main() {

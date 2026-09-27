@@ -25,12 +25,23 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
     setSavedSuccess(false)
   }
 
-  const handleSelectPreset = (user, pass) => {
-    setForm((prev) => ({
-      ...prev,
-      username: user,
-      password: pass,
-    }))
+  const handleSelectPreset = (user) => {
+    if (user === 'marcador_web_invitado') {
+      setForm((prev) => ({
+        ...prev,
+        username: 'marcador_web_invitado',
+        password: 'marcador_web_invitado',
+      }))
+    } else {
+      // Perfil Operador: selecciona marcador_web y conserva la contraseña si ya fue ingresada previamente
+      const stored = getStoredMqttConfig()
+      const existingOperatorPass = stored.username === 'marcador_web' ? stored.password : ''
+      setForm((prev) => ({
+        ...prev,
+        username: 'marcador_web',
+        password: existingOperatorPass,
+      }))
+    }
     setSavedSuccess(false)
   }
 
@@ -136,7 +147,7 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
 
               <button
                 type="button"
-                onClick={() => handleSelectPreset('marcador_web', 'LisA142.*')}
+                onClick={() => handleSelectPreset('marcador_web')}
                 className={`p-2.5 rounded-xl border text-xs font-mono font-medium flex flex-col items-center justify-center transition-all ${
                   !isGuestSelected
                     ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
@@ -201,7 +212,7 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
 
           <div>
             <label htmlFor="mqtt-pass-input" className="block text-xs font-mono uppercase tracking-wider text-gray-300 mb-1.5">
-              Contraseña MQTT
+              Contraseña MQTT {isGuestSelected ? '(Automática para Espectador)' : '(Ingresa tu contraseña)'}
             </label>
             <div className="relative">
               <input
@@ -210,8 +221,9 @@ export const MqttSettingsModal = ({ isOpen, onClose, currentStatus, currentError
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                placeholder="••••••••"
+                placeholder={isGuestSelected ? 'marcador_web_invitado' : 'Ingresa la contraseña de operador'}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-3 pr-10 py-2 text-sm text-gray-100 font-mono focus:border-emerald-500 focus:outline-none transition-colors"
+                autoComplete="current-password"
               />
               <button
                 type="button"
