@@ -15,6 +15,8 @@ import {
   AlertCircle,
   Cpu
 } from 'lucide-react'
+import logoCtg from './assets/logo_ctg.png'
+import logoUnexpo from './assets/logo_unexpo.png'
 
 function App() {
   const [displayText, setDisplayText] = useState('')
@@ -186,7 +188,7 @@ function App() {
         <div className="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           {/* Logo y Título */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner">
+            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner shrink-0">
               <Waves size={22} />
             </div>
             <div>
@@ -199,6 +201,30 @@ function App() {
               <p className="text-[11px] text-gray-400 font-mono hidden sm:block">
                 ESP32-S3 + Display RGB 128×32
               </p>
+            </div>
+
+            {/* Logos Institucionales: UNEXPO & CTG */}
+            <div className="flex items-center gap-2 pl-2 sm:pl-3 sm:border-l sm:border-gray-800">
+              <div
+                className="w-8 h-8 rounded-full overflow-hidden border border-blue-400/40 bg-white shadow-xs p-0.5 flex items-center justify-center shrink-0 hover:scale-110 transition-transform cursor-pointer"
+                title="UNEXPO - Vicerrectorado Puerto Ordaz (Universidad)"
+              >
+                <img
+                  src={logoUnexpo}
+                  alt="Logo UNEXPO"
+                  className="w-full h-full object-contain rounded-full"
+                />
+              </div>
+              <div
+                className="w-8 h-8 rounded-full overflow-hidden border border-emerald-400/40 bg-[#004d40] shadow-xs flex items-center justify-center shrink-0 hover:scale-110 transition-transform cursor-pointer"
+                title="CTG - Centro Tecnológico de Guayana (Empresa)"
+              >
+                <img
+                  src={logoCtg}
+                  alt="Logo CTG"
+                  className="w-full h-full object-cover rounded-full"
+                />
+              </div>
             </div>
           </div>
 
@@ -357,8 +383,12 @@ function App() {
 
       {/* Pie de página */}
       <footer className="border-t border-gray-900 bg-gray-950 py-4 text-center text-xs font-mono text-gray-400">
-        <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Sistema de Marcador Electrónico para Natación</span>
+        <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <img src={logoUnexpo} alt="UNEXPO" className="w-5 h-5 rounded-full bg-white object-contain border border-blue-400/30 p-0.5" title="UNEXPO - Vicerrectorado Puerto Ordaz" />
+            <img src={logoCtg} alt="CTG" className="w-5 h-5 rounded-full bg-[#004d40] object-cover border border-emerald-400/30" title="Centro Tecnológico de Guayana (CTG)" />
+            <span>Sistema de Marcador Electrónico para Natación — UNEXPO / CTG</span>
+          </div>
           <span>
             Broker: <code className="text-gray-400">{config.host || 'No configurado'}</code> ({isReadOnly ? 'Espectador' : 'Operador'})
           </span>
