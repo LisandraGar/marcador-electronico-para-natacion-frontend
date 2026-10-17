@@ -134,34 +134,23 @@ export const MatrixDisplay = ({
     }`}>
       {/* Marco exterior estilo Scoreboard LED */}
       <div className="w-full bg-gray-900/90 border border-gray-800 rounded-2xl p-3 sm:p-5 shadow-2xl backdrop-blur-xs">
-        {/* Cabecera del display */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
+        {/* Cabecera limpia del display */}
+        <div className="flex items-center justify-between gap-2 mb-3 px-1">
           <div className="flex items-center gap-2">
             <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
             <h2 className="text-xs sm:text-sm font-bold font-mono text-emerald-400 tracking-wider uppercase">
-              DISPLAY LED VIRTUAL — 128×32
+              PANTALLA VIRTUAL LED
             </h2>
-            <span className="text-[10px] font-mono bg-gray-800 text-gray-400 px-2 py-0.5 rounded">
-              MatrixPortal S3
-            </span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-mono">
             <button
-              onClick={() => setShowRawText(!showRawText)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
-              title="Alternar texto sin formato"
-            >
-              <Eye size={14} />
-              <span className="hidden sm:inline">Texto</span>
-            </button>
-            <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-800/80 hover:bg-gray-700 text-gray-300 transition-colors cursor-pointer"
               title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
             >
               {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              <span className="hidden sm:inline">{isFullscreen ? 'Minimizar' : 'Maximizar'}</span>
+              <span className="hidden sm:inline">{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
             </button>
           </div>
         </div>
@@ -174,26 +163,6 @@ export const MatrixDisplay = ({
             style={{ imageRendering: 'pixelated' }}
             title="Simulador de matriz LED RGB 128x32"
           />
-        </div>
-
-        {/* Vista de texto sin formato */}
-        {showRawText && (
-          <div className="mt-3 p-3 bg-black/70 border border-gray-800 rounded-lg">
-            <div className="text-[10px] font-mono text-gray-400 uppercase mb-1">
-              Contenido enviado al display:
-            </div>
-            <pre className="text-xs font-mono text-emerald-300 whitespace-pre-wrap break-all bg-gray-950 p-2 rounded border border-gray-800/80">
-              {text || '(Vacío)'}
-            </pre>
-          </div>
-        )}
-
-        {/* Pie informativo */}
-        <div className="mt-2.5 flex items-center justify-between text-[11px] font-mono text-gray-400 px-1">
-          <span className="truncate">
-            Color: <strong style={{ color: textColor }}>{textColor.toUpperCase()}</strong>
-          </span>
-          <span>4,096 Píxeles RGB (128×32)</span>
         </div>
       </div>
     </div>

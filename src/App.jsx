@@ -43,10 +43,7 @@ function App() {
 
   const [scores, setScores] = useState([])
   const [currentScreen, setCurrentScreen] = useState('show') // 'show' o 'chrono'
-  const [twoRecords, setTwoRecords] = useState([
-    { ms: '', ss: '', mm: '', id: '', hh: '' },
-    { ms: '', ss: '', mm: '', id: '', hh: '' },
-  ])
+  const [twoRecords, setTwoRecords] = useState([])
 
   const mqttTopics = useMemo(
     () => [
@@ -192,15 +189,9 @@ function App() {
               <Waves size={22} />
             </div>
             <div>
-              <h1 className="text-sm sm:text-base font-bold font-mono text-gray-100 uppercase tracking-tight flex items-center gap-2">
-                <span>Marcador de Natación</span>
-                <span className="hidden sm:inline-block text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded font-mono">
-                  v2.0
-                </span>
+              <h1 className="text-sm sm:text-base font-bold font-mono text-gray-100 uppercase tracking-tight">
+                Marcador de Natación
               </h1>
-              <p className="text-[11px] text-gray-400 font-mono hidden sm:block">
-                ESP32-S3 + Display RGB 128×32
-              </p>
             </div>
 
             {/* Logos Institucionales: UNEXPO & CTG */}
@@ -246,27 +237,10 @@ function App() {
               <span>{temp}°C</span>
             </div>
 
-            {/* Indicador de Hardware ESP32 */}
-            <div
-              className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-mono ${
-                isHardwareOnline
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                  : 'bg-gray-850 border-gray-700/60 text-gray-400'
-              }`}
-              title={
-                isHardwareOnline
-                  ? 'ESP32 MatrixPortal conectado y activo'
-                  : 'ESP32 en espera o apagado (el broker reenviará al conectar)'
-              }
-            >
-              <Cpu size={13} className={isHardwareOnline ? 'text-emerald-400' : 'text-gray-500'} />
-              <span>{isHardwareOnline ? 'ESP32 OK' : 'ESP32 Espera'}</span>
-            </div>
-
             {/* Badge de Rol de Usuario (Espectador vs Operador) */}
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition-all cursor-pointer ${
                 isReadOnly
                   ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20'
                   : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
@@ -281,31 +255,30 @@ function App() {
               <button
                 onClick={handleRefreshData}
                 disabled={!isConnected}
-                className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-gray-850 hover:bg-gray-800 disabled:opacity-40 disabled:pointer-events-none text-gray-300 border border-gray-700/60 font-mono text-xs flex items-center gap-1.5 transition-colors"
+                className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-gray-850 hover:bg-gray-800 disabled:opacity-40 disabled:pointer-events-none text-gray-300 border border-gray-700/60 font-mono text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Solicitar datos actualizados al ESP32"
                 aria-label="Actualizar datos"
               >
                 <RefreshCw size={14} className={isConnected ? 'hover:rotate-180 transition-transform' : ''} />
-                <span className="hidden lg:inline">Actualizar</span>
               </button>
             )}
 
             {/* Badge interactivo de Conexión MQTT */}
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition-all cursor-pointer ${
                 isConnected
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
                   : status === 'connecting' || status === 'reconnecting'
                   ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
                   : 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20'
               }`}
-              title="Click para ver/editar configuración del Broker MQTT"
+              title="Click para ver/editar configuración de conexión"
             >
               {isConnected ? (
                 <>
                   <Wifi size={14} className="text-emerald-400" />
-                  <span className="hidden sm:inline">Online</span>
+                  <span className="hidden sm:inline">Conectado</span>
                 </>
               ) : status === 'connecting' || status === 'reconnecting' ? (
                 <>
@@ -315,7 +288,7 @@ function App() {
               ) : (
                 <>
                   <WifiOff size={14} className="text-red-400" />
-                  <span className="hidden sm:inline">Offline</span>
+                  <span className="hidden sm:inline">Desconectado</span>
                 </>
               )}
               <Settings size={13} className="ml-1 opacity-70" />
@@ -345,7 +318,7 @@ function App() {
       {/* ========================================================
           CONTENIDO PRINCIPAL
       ======================================================== */}
-      <main className="container mx-auto px-3 sm:px-4 py-6 space-y-6 flex-1">
+      <main className="container mx-auto px-3 sm:px-4 py-5 space-y-5 flex-1">
         {/* Simulación en Canvas de la Matriz LED */}
         <section aria-label="Visualizador de Matriz LED">
           <MatrixDisplay
@@ -382,16 +355,11 @@ function App() {
       </main>
 
       {/* Pie de página */}
-      <footer className="border-t border-gray-900 bg-gray-950 py-4 text-center text-xs font-mono text-gray-400">
-        <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <img src={logoUnexpo} alt="UNEXPO" className="w-5 h-5 rounded-full bg-white object-contain border border-blue-400/30 p-0.5" title="UNEXPO - Vicerrectorado Puerto Ordaz" />
-            <img src={logoCtg} alt="CTG" className="w-5 h-5 rounded-full bg-[#004d40] object-cover border border-emerald-400/30" title="Centro Tecnológico de Guayana (CTG)" />
-            <span>Sistema de Marcador Electrónico para Natación — UNEXPO / CTG</span>
-          </div>
-          <span>
-            Broker: <code className="text-gray-400">{config.host || 'No configurado'}</code> ({isReadOnly ? 'Espectador' : 'Operador'})
-          </span>
+      <footer className="border-t border-gray-900 bg-gray-950 py-4 text-center text-xs font-mono text-gray-500">
+        <div className="container mx-auto px-4 flex items-center justify-center gap-2">
+          <img src={logoUnexpo} alt="UNEXPO" className="w-5 h-5 rounded-full bg-white object-contain border border-blue-400/30 p-0.5" title="UNEXPO - Vicerrectorado Puerto Ordaz" />
+          <img src={logoCtg} alt="CTG" className="w-5 h-5 rounded-full bg-[#004d40] object-cover border border-emerald-400/30" title="Centro Tecnológico de Guayana (CTG)" />
+          <span>Sistema de Marcador Electrónico para Natación — UNEXPO / CTG</span>
         </div>
       </footer>
 
