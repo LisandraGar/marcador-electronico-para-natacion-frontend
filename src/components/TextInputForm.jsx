@@ -204,7 +204,7 @@ export const TextInputForm = ({
         const c2_ss = String(c2Source?.ss ?? 0).padStart(2, '0')
         const c2_ms = String(c2Source?.ms ?? 0).padStart(2, '0')
 
-        return ` ${t_hh}:${t_mm} ${ampm} ${t}°C ${netBadge}\n1|#${id1} ${c1_hh}:${c1_mm}:${c1_ss}.${c1_ms}\n2|#${id2} ${c2_hh}:${c2_mm}:${c2_ss}.${c2_ms}`
+        return ` ${t_hh}:${t_mm} ${ampm} ${t}°C ${netBadge}\nC1: ${c1_hh}:${c1_mm}:${c1_ss}.${c1_ms}\nC2: ${c2_hh}:${c2_mm}:${c2_ss}.${c2_ms}`
       }
 
       // Modo Récords ('show'): muestra los récords igual que la pantalla física
