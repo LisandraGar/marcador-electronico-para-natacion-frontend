@@ -36,6 +36,8 @@ export const TextInputForm = ({
   currentScreen = 'show',
   onScreenChange,
   twoRecords = [],
+  isHardwareOnline = false,
+  isConnected = false,
   isReadOnly = true,
   onOpenSettings,
 }) => {
@@ -183,6 +185,8 @@ export const TextInputForm = ({
       const t_hh = String(h ?? 0).padStart(2, '0')
       const t_mm = String(m ?? 0).padStart(2, '0')
 
+      const netBadge = isConnected ? '[ON]' : '[L]'
+
       // Modo Cronómetros: muestra siempre los 2 cronómetros en simultáneo igual que la pantalla física
       if (scr === 'chrono') {
         const c1Source = (tc?.c1 && String(tc.c1.id) === String(lane1Id || tc.c1.id)) ? tc.c1 : (lane1Score || tc?.c1 || tc)
@@ -200,7 +204,7 @@ export const TextInputForm = ({
         const c2_ss = String(c2Source?.ss ?? 0).padStart(2, '0')
         const c2_ms = String(c2Source?.ms ?? 0).padStart(2, '0')
 
-        return `   ${t_hh}:${t_mm} ${ampm} - ${t}°C   \n1|#${id1} ${c1_hh}:${c1_mm}:${c1_ss}.${c1_ms}\n2|#${id2} ${c2_hh}:${c2_mm}:${c2_ss}.${c2_ms}`
+        return ` ${t_hh}:${t_mm} ${ampm} ${t}°C ${netBadge}\n1|#${id1} ${c1_hh}:${c1_mm}:${c1_ss}.${c1_ms}\n2|#${id2} ${c2_hh}:${c2_mm}:${c2_ss}.${c2_ms}`
       }
 
       // Modo Récords ('show'): muestra los récords igual que la pantalla física
@@ -221,9 +225,9 @@ export const TextInputForm = ({
         ? `${tr1.id}.${String(tr1.hh ?? 0).padStart(2, '0')}:${String(tr1.mm ?? 0).padStart(2, '0')}:${String(tr1.ss ?? 0).padStart(2, '0')}.${String(tr1.ms ?? 0).padStart(2, '0')}`
         : ''
 
-      return `${t_hh}:${t_mm} ${ampm}      HEAT ${t}\n${tr0_str}\n        ${tr1_str}`
+      return `${t_hh}:${t_mm} ${ampm}  HEAT ${t} ${netBadge}\n${tr0_str}\n        ${tr1_str}`
     },
-    [scores, lane1Id, lane2Id, lane1Score, lane2Score]
+    [scores, lane1Id, lane2Id, lane1Score, lane2Score, isConnected]
   )
 
   useEffect(() => {

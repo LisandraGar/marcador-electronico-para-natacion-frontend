@@ -348,6 +348,7 @@ function App() {
             onScreenChange={setCurrentScreen}
             twoRecords={twoRecords}
             isHardwareOnline={isHardwareOnline}
+            isConnected={isConnected}
             isReadOnly={isReadOnly}
             onOpenSettings={() => setIsSettingsOpen(true)}
           />
